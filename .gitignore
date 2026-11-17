@@ -1,0 +1,26 @@
+# --- Configuração local do Claude Code ---
+# As permissões por máquina não fazem parte do estudo e não são versionadas.
+.claude/settings.local.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+
+# --- Artefatos regeneráveis da campanha ---
+# O dataset fixado e o ballast são reproduzidos byte a byte a partir das
+# sementes fixadas; o manifesto com o SHA-256 de cada artefato É versionado.
+# O que não entra no repositório são os volumes de até 15 GB em si.
+data/dataset/
+data/ballast/
+data/payloads/
+
+# --- Editores e sistema operacional ---
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
