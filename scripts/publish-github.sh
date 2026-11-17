@@ -10,6 +10,15 @@
 #
 #   VISIBILITY=private BRANCH=main bash scripts/publish-github.sh
 #
+# Se o remoto já tiver commits que o branch local não contém — o caso de um
+# repositório criado pela interface do GitHub, que já vem com um README
+# boilerplate — o script para e explica o que fazer, em vez de deixar o git
+# despejar um hint genérico. Com FORCE=1 ele substitui a história remota com
+# `--force-with-lease`, que só sobrescreve se o remoto não tiver mudado desde
+# o fetch:
+#
+#   FORCE=1 bash scripts/publish-github.sh
+#
 # Requisitos: `git`, `gh` (autenticado) e, opcionalmente, GIT_NAME / GIT_EMAIL
 # para commitar sem configuracao global de identidade.
 
@@ -19,6 +28,7 @@ REPO_SLUG="${REPO_SLUG:-GuilhermeQuerque/Servidor_celular_de_baixo_consumo_energ
 REMOTE_URL="https://github.com/${REPO_SLUG}.git"
 BRANCH="${BRANCH:-main}"
 VISIBILITY="${VISIBILITY:-public}"
+FORCE="${FORCE:-0}"
 DESCRIPTION="${DESCRIPTION:-Energia e custo de um servidor de armazenamento pessoal: celular Android medido vs. armazenamento em nuvem modelado.}"
 
 COMMIT_MSG="${COMMIT_MSG:-Cria a constitution v3 do experimento
@@ -131,10 +141,64 @@ else
   git remote set-url origin "$REMOTE_URL"
 fi
 
+# O fetch atualiza refs/remotes/origin/*: e ele que dá lease valido ao
+# --force-with-lease e que permite detectar a divergencia abaixo.
+echo "==> atualizando as referencias do remoto"
+git fetch origin --quiet
+
 # --- 7. Push -----------------------------------------------------------------
 
-echo "==> enviando para o GitHub"
-git push -u origin "$BRANCH"
+DIVERGENTE=0
+if git rev-parse --verify "origin/$BRANCH" >/dev/null 2>&1 \
+   && ! git merge-base --is-ancestor "origin/$BRANCH" HEAD; then
+  DIVERGENTE=1
+fi
+
+if [ "$DIVERGENTE" -eq 1 ]; then
+  if [ "$FORCE" = "1" ]; then
+    echo "==> divergencia detectada — substituindo a historia remota"
+    git push --force-with-lease -u origin "$BRANCH"
+  else
+    falha "o remoto tem commits que o branch local nao contem.
+  Inspecione o que esta la:
+      git log --oneline origin/$BRANCH
+      git ls-tree -r --name-only origin/$BRANCH
+  Se for apenas o boilerplate que o GitHub gera ao criar o repositorio
+  (README, .gitignore, LICENSE gerados automaticamente), substitua a
+  historia remota:
+      FORCE=1 bash scripts/publish-github.sh
+  Se houver conteudo real que precise ser preservado, integre antes:
+      git pull --no-rebase origin $BRANCH   # depois resolva os conflitos e envie"
+  fi
+else
+  git push -u origin "$BRANCH"
+fi
+
+# --- 8. Metadados do repositorio ---------------------------------------------
+# O caminho "repositorio ja existe" nao passa por `gh repo create`, e portanto
+# nao aplica --visibility nem --description. O script nao altera a
+# visibilidade por conta propria (descer um repositorio publico para privado
+# seria um efeito colateral invisivel), mas preenche a descricao se ela
+# estiver vazia e reporta o estado real.
+
+DESCRICAO_ATUAL="$(gh repo view "$REPO_SLUG" --json description --jq '.description // ""' 2>/dev/null || echo '')"
+VISIBILIDADE_ATUAL="$(gh repo view "$REPO_SLUG" --json visibility --jq '.visibility' 2>/dev/null || echo '?')"
+
+if [ -z "$DESCRICAO_ATUAL" ]; then
+  echo "==> preenchendo a descricao do repositorio"
+  gh repo edit "$REPO_SLUG" --description "$DESCRIPTION" || true
+  DESCRICAO_ATUAL="$DESCRIPTION"
+fi
+
+echo
+echo "==> visibilidade no GitHub: $VISIBILIDADE_ATUAL (o script pediu: $VISIBILITY)"
+echo "==> descricao no GitHub:    $DESCRICAO_ATUAL"
+
+if [ "$VISIBILIDADE_ATUAL" != "$VISIBILITY" ]; then
+  echo
+  echo "AVISO: a visibilidade no GitHub difere do que o script pediu. Corrija com:"
+  echo "    gh repo edit $REPO_SLUG --visibility $VISIBILITY"
+fi
 
 echo
 echo "Pronto: https://github.com/$REPO_SLUG"
