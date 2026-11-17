@@ -28,7 +28,7 @@ REPO_SLUG="${REPO_SLUG:-GuilhermeQuerque/Servidor_celular_de_baixo_consumo_energ
 REMOTE_URL="https://github.com/${REPO_SLUG}.git"
 BRANCH="${BRANCH:-main}"
 VISIBILITY="${VISIBILITY:-public}"
-FORCE="${FORCE:-0}"
+FORCE=1
 DESCRIPTION="${DESCRIPTION:-Energia e custo de um servidor de armazenamento pessoal: celular Android medido vs. armazenamento em nuvem modelado.}"
 
 COMMIT_MSG="${COMMIT_MSG:-Cria a constitution v3 do experimento
